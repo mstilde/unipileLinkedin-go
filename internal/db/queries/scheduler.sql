@@ -83,3 +83,51 @@ SET status = 'cancelled',
     cancelled_at = NOW(),
     cancel_reason = $2
 WHERE id = $1;
+
+-- name: GetNextSequenceStep :one
+-- Given the just-dispatched step (by sequence_step id), find the next one in the
+-- same campaign (step_index + 1). Returns no rows when there is no next step.
+SELECT next.*
+FROM sequence_steps cur
+JOIN sequence_steps next
+  ON next.campaign_id = cur.campaign_id
+ AND next.step_index = cur.step_index + 1
+WHERE cur.id = $1
+LIMIT 1;
+
+-- name: CreateProspectStep :one
+-- Insert a pending prospect_step. scheduled_at should already include any delay.
+INSERT INTO prospect_steps (
+    prospect_id, step_id, step_type, scheduled_at, status
+)
+VALUES ($1, $2, $3, $4, 'pending')
+RETURNING *;
+
+-- name: SetProspectInvited :exec
+-- Bookkeeping after a successful invite: set status, invited_at, chat_id, and
+-- the LinkedIn provider_id if we discovered it from the response.
+UPDATE prospects
+SET status               = 'invited',
+    invited_at           = COALESCE(invited_at, NOW()),
+    linkedin_provider_id = COALESCE($2, linkedin_provider_id),
+    chat_id              = COALESCE($3, chat_id),
+    updated_at           = NOW()
+WHERE id = $1;
+
+-- name: SetProspectChatID :exec
+-- After StartNewChat we learn the chat_id for the prospect.
+UPDATE prospects
+SET chat_id    = $2,
+    updated_at = NOW()
+WHERE id = $1;
+
+-- name: CountInvitesSentToday :one
+-- Defensive in-app daily cap. Counts prospect_steps marked 'sent' today for the
+-- account, filtered to invite step types.
+SELECT COUNT(*)::BIGINT AS count
+FROM prospect_steps ps
+JOIN prospects p ON p.id = ps.prospect_id
+WHERE p.account_id = $1
+  AND ps.step_type = 'invite'
+  AND ps.status = 'sent'
+  AND ps.sent_at >= NOW() - INTERVAL '24 hours';

@@ -26,6 +26,11 @@ type Config struct {
 	AnthropicAPIKey string
 	OpenAIAPIKey    string
 
+	// Optional base-URL overrides so AI traffic can be routed through proxies
+	// like OpenCode Zen/Go. Empty = use vendor default.
+	AIBaseURLAnthropic string
+	AIBaseURLOpenAI    string
+
 	AnthropicModelFast  string
 	AnthropicModelSmart string
 	OpenAIModelEnrich   string
@@ -69,6 +74,9 @@ func Load() (*Config, error) {
 
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
+
+		AIBaseURLAnthropic: os.Getenv("AI_BASE_URL_ANTHROPIC"),
+		AIBaseURLOpenAI:    os.Getenv("AI_BASE_URL_OPENAI"),
 
 		AnthropicModelFast:  getEnv("ANTHROPIC_MODEL_FAST", "claude-haiku-4-5"),
 		AnthropicModelSmart: getEnv("ANTHROPIC_MODEL_SMART", "claude-sonnet-4-6"),

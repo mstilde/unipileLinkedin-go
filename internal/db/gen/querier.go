@@ -12,9 +12,14 @@ import (
 
 type Querier interface {
 	AssignAccountToUser(ctx context.Context, arg AssignAccountToUserParams) error
+	// Defensive in-app daily cap. Counts prospect_steps marked 'sent' today for the
+	// account, filtered to invite step types.
+	CountInvitesSentToday(ctx context.Context, accountID string) (int64, error)
 	CountProspectsByCampaign(ctx context.Context, campaignID pgtype.UUID) (int64, error)
 	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
 	CreateProspect(ctx context.Context, arg CreateProspectParams) (Prospect, error)
+	// Insert a pending prospect_step. scheduled_at should already include any delay.
+	CreateProspectStep(ctx context.Context, arg CreateProspectStepParams) (ProspectStep, error)
 	CreateStep(ctx context.Context, arg CreateStepParams) (SequenceStep, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeactivateUser(ctx context.Context, id int64) error
@@ -29,6 +34,9 @@ type Querier interface {
 	GetCampaign(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	GetCampaignForAccount(ctx context.Context, arg GetCampaignForAccountParams) (Campaign, error)
 	GetClientProfileByAccount(ctx context.Context, accountID string) (ClientProfile, error)
+	// Given the just-dispatched step (by sequence_step id), find the next one in the
+	// same campaign (step_index + 1). Returns no rows when there is no next step.
+	GetNextSequenceStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
 	GetProspect(ctx context.Context, id pgtype.UUID) (Prospect, error)
 	GetStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
@@ -57,6 +65,11 @@ type Querier interface {
 	ProspectStageDistribution(ctx context.Context, campaignID pgtype.UUID) ([]ProspectStageDistributionRow, error)
 	ReleaseStaleLeases(ctx context.Context, dollar_1 pgtype.Interval) error
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
+	// After StartNewChat we learn the chat_id for the prospect.
+	SetProspectChatID(ctx context.Context, arg SetProspectChatIDParams) error
+	// Bookkeeping after a successful invite: set status, invited_at, chat_id, and
+	// the LinkedIn provider_id if we discovered it from the response.
+	SetProspectInvited(ctx context.Context, arg SetProspectInvitedParams) error
 	SetProspectStatus(ctx context.Context, arg SetProspectStatusParams) (Prospect, error)
 	UnassignAccountFromUser(ctx context.Context, arg UnassignAccountFromUserParams) error
 	UpdateCampaign(ctx context.Context, arg UpdateCampaignParams) (Campaign, error)

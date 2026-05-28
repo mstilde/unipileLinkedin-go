@@ -11,6 +11,101 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countInvitesSentToday = `-- name: CountInvitesSentToday :one
+SELECT COUNT(*)::BIGINT AS count
+FROM prospect_steps ps
+JOIN prospects p ON p.id = ps.prospect_id
+WHERE p.account_id = $1
+  AND ps.step_type = 'invite'
+  AND ps.status = 'sent'
+  AND ps.sent_at >= NOW() - INTERVAL '24 hours'
+`
+
+// Defensive in-app daily cap. Counts prospect_steps marked 'sent' today for the
+// account, filtered to invite step types.
+func (q *Queries) CountInvitesSentToday(ctx context.Context, accountID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countInvitesSentToday, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createProspectStep = `-- name: CreateProspectStep :one
+INSERT INTO prospect_steps (
+    prospect_id, step_id, step_type, scheduled_at, status
+)
+VALUES ($1, $2, $3, $4, 'pending')
+RETURNING id, prospect_id, step_id, step_type, scheduled_at, sent_at, status, message_sent, error_detail, retry_count, max_retries, ab_variant_id, branch, last_check_at, processing_started_at, created_at
+`
+
+type CreateProspectStepParams struct {
+	ProspectID  pgtype.UUID        `json:"prospect_id"`
+	StepID      pgtype.UUID        `json:"step_id"`
+	StepType    string             `json:"step_type"`
+	ScheduledAt pgtype.Timestamptz `json:"scheduled_at"`
+}
+
+// Insert a pending prospect_step. scheduled_at should already include any delay.
+func (q *Queries) CreateProspectStep(ctx context.Context, arg CreateProspectStepParams) (ProspectStep, error) {
+	row := q.db.QueryRow(ctx, createProspectStep,
+		arg.ProspectID,
+		arg.StepID,
+		arg.StepType,
+		arg.ScheduledAt,
+	)
+	var i ProspectStep
+	err := row.Scan(
+		&i.ID,
+		&i.ProspectID,
+		&i.StepID,
+		&i.StepType,
+		&i.ScheduledAt,
+		&i.SentAt,
+		&i.Status,
+		&i.MessageSent,
+		&i.ErrorDetail,
+		&i.RetryCount,
+		&i.MaxRetries,
+		&i.AbVariantID,
+		&i.Branch,
+		&i.LastCheckAt,
+		&i.ProcessingStartedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getNextSequenceStep = `-- name: GetNextSequenceStep :one
+SELECT next.id, next.campaign_id, next.step_index, next.step_type, next.delay_hours, next.template, next.ai_personalize, next.note_max_chars, next.stage_label, next.config_json, next.created_at
+FROM sequence_steps cur
+JOIN sequence_steps next
+  ON next.campaign_id = cur.campaign_id
+ AND next.step_index = cur.step_index + 1
+WHERE cur.id = $1
+LIMIT 1
+`
+
+// Given the just-dispatched step (by sequence_step id), find the next one in the
+// same campaign (step_index + 1). Returns no rows when there is no next step.
+func (q *Queries) GetNextSequenceStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error) {
+	row := q.db.QueryRow(ctx, getNextSequenceStep, id)
+	var i SequenceStep
+	err := row.Scan(
+		&i.ID,
+		&i.CampaignID,
+		&i.StepIndex,
+		&i.StepType,
+		&i.DelayHours,
+		&i.Template,
+		&i.AiPersonalize,
+		&i.NoteMaxChars,
+		&i.StageLabel,
+		&i.ConfigJson,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const leaseProspectStep = `-- name: LeaseProspectStep :one
 UPDATE prospect_steps
 SET status = 'processing',
@@ -328,5 +423,46 @@ WHERE status = 'processing'
 
 func (q *Queries) ReleaseStaleLeases(ctx context.Context, dollar_1 pgtype.Interval) error {
 	_, err := q.db.Exec(ctx, releaseStaleLeases, dollar_1)
+	return err
+}
+
+const setProspectChatID = `-- name: SetProspectChatID :exec
+UPDATE prospects
+SET chat_id    = $2,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type SetProspectChatIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	ChatID *string     `json:"chat_id"`
+}
+
+// After StartNewChat we learn the chat_id for the prospect.
+func (q *Queries) SetProspectChatID(ctx context.Context, arg SetProspectChatIDParams) error {
+	_, err := q.db.Exec(ctx, setProspectChatID, arg.ID, arg.ChatID)
+	return err
+}
+
+const setProspectInvited = `-- name: SetProspectInvited :exec
+UPDATE prospects
+SET status               = 'invited',
+    invited_at           = COALESCE(invited_at, NOW()),
+    linkedin_provider_id = COALESCE($2, linkedin_provider_id),
+    chat_id              = COALESCE($3, chat_id),
+    updated_at           = NOW()
+WHERE id = $1
+`
+
+type SetProspectInvitedParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	LinkedinProviderID *string     `json:"linkedin_provider_id"`
+	ChatID             *string     `json:"chat_id"`
+}
+
+// Bookkeeping after a successful invite: set status, invited_at, chat_id, and
+// the LinkedIn provider_id if we discovered it from the response.
+func (q *Queries) SetProspectInvited(ctx context.Context, arg SetProspectInvitedParams) error {
+	_, err := q.db.Exec(ctx, setProspectInvited, arg.ID, arg.LinkedinProviderID, arg.ChatID)
 	return err
 }

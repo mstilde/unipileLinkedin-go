@@ -21,6 +21,7 @@ import (
 	"github.com/mstilde/unipile-linkedin-go/internal/http/api"
 	"github.com/mstilde/unipile-linkedin-go/internal/http/ui"
 	"github.com/mstilde/unipile-linkedin-go/internal/scheduler"
+	"github.com/mstilde/unipile-linkedin-go/internal/unipile"
 )
 
 func main() {
@@ -76,11 +77,12 @@ func main() {
 			Signer: signer,
 		})
 
-		schedMgr = scheduler.New(dbPool, q, scheduler.Config{
+		schedMgr = scheduler.New(dbPool, q, unipile.NewEnvProvider(), scheduler.Config{
 			CampaignInterval: cfg.CampaignSchedulerInterval,
 			FollowUpInterval: cfg.FollowUpInterval,
 			AIQueueInterval:  cfg.AIQueueInterval,
 			DryRun:           cfg.DryRun,
+			KillswitchGlobal: cfg.KillswitchGlobal,
 		}, slog.Default())
 		schedMgr.Start(rootCtx)
 	}

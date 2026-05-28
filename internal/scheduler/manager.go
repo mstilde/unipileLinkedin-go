@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+	"github.com/mstilde/unipile-linkedin-go/internal/unipile"
 )
 
 // Config bundles the cadences each loop runs at. Zero values fall back to
@@ -25,6 +26,7 @@ type Config struct {
 	BatchSize        int32         // rows per tick (default 50)
 	StaleLeaseAge    time.Duration // re-arm processing rows older than this
 	DryRun           bool          // when true, side-effecting actions are logged but not invoked
+	KillswitchGlobal bool          // when true, every dispatch fails fast with "killswitch active"
 }
 
 func (c Config) withDefaults() Config {
@@ -49,23 +51,28 @@ func (c Config) withDefaults() Config {
 // Manager owns the three loops. Construct with New, then call Start. Stop
 // is implicit: cancel the context passed to Start.
 type Manager struct {
-	cfg  Config
-	pool *pgxpool.Pool
-	q    *gen.Queries
-	log  *slog.Logger
+	cfg     Config
+	pool    *pgxpool.Pool
+	q       *gen.Queries
+	unipile *unipile.Provider
+	log     *slog.Logger
 
 	wg sync.WaitGroup
 }
 
-func New(pool *pgxpool.Pool, q *gen.Queries, cfg Config, log *slog.Logger) *Manager {
+func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, cfg Config, log *slog.Logger) *Manager {
 	if log == nil {
 		log = slog.Default()
 	}
+	if up == nil {
+		up = unipile.NewEnvProvider()
+	}
 	return &Manager{
-		cfg:  cfg.withDefaults(),
-		pool: pool,
-		q:    q,
-		log:  log,
+		cfg:     cfg.withDefaults(),
+		pool:    pool,
+		q:       q,
+		unipile: up,
+		log:     log,
 	}
 }
 
