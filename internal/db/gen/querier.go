@@ -32,16 +32,27 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	IsAccountOwned(ctx context.Context, arg IsAccountOwnedParams) (bool, error)
+	LeaseProspectStep(ctx context.Context, id pgtype.UUID) (ProspectStep, error)
 	ListAccounts(ctx context.Context) ([]Account, error)
 	ListAccountsByOwner(ctx context.Context, ownerUserID *int64) ([]Account, error)
 	ListActiveCampaigns(ctx context.Context) ([]Campaign, error)
 	ListCampaignsByAccount(ctx context.Context, accountID string) ([]Campaign, error)
+	ListDueFollowUpTasks(ctx context.Context, limit int32) ([]FollowUpTask, error)
+	ListPendingAIReplies(ctx context.Context, limit int32) ([]AiReplyQueue, error)
+	ListPendingProspectSteps(ctx context.Context, limit int32) ([]ListPendingProspectStepsRow, error)
 	ListProspectsByCampaign(ctx context.Context, arg ListProspectsByCampaignParams) ([]Prospect, error)
 	ListStepsByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]SequenceStep, error)
 	ListTemplatesByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]CampaignTemplate, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	MarkAIReplyDone(ctx context.Context, arg MarkAIReplyDoneParams) error
+	MarkAIReplyFailed(ctx context.Context, arg MarkAIReplyFailedParams) error
+	MarkFollowUpTaskCancelled(ctx context.Context, arg MarkFollowUpTaskCancelledParams) error
+	MarkFollowUpTaskSent(ctx context.Context, arg MarkFollowUpTaskSentParams) error
+	MarkProspectStepFailed(ctx context.Context, arg MarkProspectStepFailedParams) error
+	MarkProspectStepSent(ctx context.Context, arg MarkProspectStepSentParams) error
 	ProspectFunnelByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]ProspectFunnelByCampaignRow, error)
 	ProspectStageDistribution(ctx context.Context, campaignID pgtype.UUID) ([]ProspectStageDistributionRow, error)
+	ReleaseStaleLeases(ctx context.Context, dollar_1 pgtype.Interval) error
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
 	SetProspectStatus(ctx context.Context, arg SetProspectStatusParams) (Prospect, error)
 	UnassignAccountFromUser(ctx context.Context, arg UnassignAccountFromUserParams) error

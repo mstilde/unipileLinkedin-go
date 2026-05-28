@@ -19,6 +19,7 @@ import (
 	"github.com/mstilde/unipile-linkedin-go/internal/db"
 	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
 	"github.com/mstilde/unipile-linkedin-go/internal/http/api"
+	"github.com/mstilde/unipile-linkedin-go/internal/scheduler"
 )
 
 func main() {
@@ -38,8 +39,8 @@ func main() {
 
 	// DB pool. Without DATABASE_URL the server still starts but DB-backed
 	// routes will 500 — useful for /health smoke tests in CI.
-	var pool *gen.Queries
 	var apiHandler http.Handler
+	var schedMgr *scheduler.Manager
 	if cfg.DatabaseURL != "" {
 		dbPool, err := db.OpenPool(rootCtx, cfg.DatabaseURL)
 		if err != nil {
@@ -49,13 +50,10 @@ func main() {
 		defer dbPool.Close()
 
 		q := gen.New(dbPool)
-		_ = pool
 
 		// JWT signer (require JWT_SECRET when DB is wired).
 		secret := cfg.JWTSecret
 		if len(secret) < 32 {
-			// Use a development default so the server boots locally without
-			// extra setup. Refuses to start in production via config validation.
 			secret = "dev-secret-do-not-use-in-production-32chars-min!!"
 		}
 		signer, err := auth.NewSigner(secret, cfg.JWTIssuer, cfg.JWTAudience, cfg.JWTSessionTTL)
@@ -70,6 +68,14 @@ func main() {
 			Signer: signer,
 			Store:  &api.SQLAccountStore{Q: q},
 		})
+
+		schedMgr = scheduler.New(dbPool, q, scheduler.Config{
+			CampaignInterval: cfg.CampaignSchedulerInterval,
+			FollowUpInterval: cfg.FollowUpInterval,
+			AIQueueInterval:  cfg.AIQueueInterval,
+			DryRun:           cfg.DryRun,
+		}, slog.Default())
+		schedMgr.Start(rootCtx)
 	}
 
 	r := chi.NewRouter()
@@ -109,6 +115,9 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("graceful shutdown failed", "err", err)
+	}
+	if schedMgr != nil {
+		schedMgr.Wait()
 	}
 	slog.Info("server stopped")
 }
