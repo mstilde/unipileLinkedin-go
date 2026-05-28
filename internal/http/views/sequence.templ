@@ -1,0 +1,93 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ SequenceBuilder(accountID string, c gen.Campaign, steps []gen.SequenceStep) {
+	@Layout("Sequence Builder") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>{ c.Name }</h2>
+			<span class={ "status status-" + c.Status }>{ c.Status }</span>
+		</section>
+
+		<form
+			id="sequence-form"
+			hx-put={ "/ui/accounts/" + accountID + "/campaigns/" + uuidStr(c.ID) + "/sequence" }
+			hx-swap="none"
+			hx-on::after-request="document.getElementById('save-msg').textContent='Saved at ' + new Date().toLocaleTimeString()"
+		>
+			<div id="step-stack" class="step-stack">
+				if len(steps) == 0 {
+					@StepCard(0, "invite", 0, "", 200, nil)
+					@StepCard(1, "wait", 48, "", 200, nil)
+					@StepCard(2, "message", 0, "", 200, nil)
+				} else {
+					for i, s := range steps {
+						@StepCard(i, s.StepType, int(s.DelayHours), strDeref(s.Template), int(s.NoteMaxChars), s.StageLabel)
+					}
+				}
+			</div>
+			<div class="sequence-actions">
+				<button type="button" onclick="appendStep('message')">+ Add message</button>
+				<button type="button" onclick="appendStep('wait')">+ Add wait</button>
+				<button type="submit">Save sequence</button>
+				<span id="save-msg" class="save-msg"></span>
+			</div>
+		</form>
+
+		<script src="/static/js/sequence-builder.js"></script>
+	}
+}
+
+templ StepCard(index int, stepType string, delayHours int, template string, noteMaxChars int, stageLabel *string) {
+	<details class="step-card" open data-step-index={ itoa(index) }>
+		<summary>
+			<span class="badge">#{ itoa(index + 1) }</span>
+			<span class="step-type">{ stepType }</span>
+			if stepType == "wait" {
+				<span class="muted">{ itoa(delayHours) }h delay</span>
+			}
+		</summary>
+		<div class="step-body">
+			<label>
+				Type
+				<select name={ "steps[" + itoa(index) + "].step_type" }>
+					@stepTypeOption("invite", stepType)
+					@stepTypeOption("message", stepType)
+					@stepTypeOption("wait", stepType)
+					@stepTypeOption("visit_profile", stepType)
+					@stepTypeOption("voice_note", stepType)
+					@stepTypeOption("inmail", stepType)
+					@stepTypeOption("end", stepType)
+				</select>
+			</label>
+			<label>
+				Delay (hours)
+				<input type="number" name={ "steps[" + itoa(index) + "].delay_hours" } value={ itoa(delayHours) } min="0"/>
+			</label>
+			if stepType != "wait" && stepType != "visit_profile" && stepType != "end" {
+				<label class="full">
+					Template
+					<textarea name={ "steps[" + itoa(index) + "].template" } rows="4" placeholder="Hola {nombre}, ...">{ template }</textarea>
+				</label>
+				<label>
+					Char limit
+					<input type="number" name={ "steps[" + itoa(index) + "].note_max_chars" } value={ itoa(noteMaxChars) } min="1" max="2000"/>
+				</label>
+			}
+			<label>
+				Stage label
+				<input type="text" name={ "steps[" + itoa(index) + "].stage_label" } value={ strDeref(stageLabel) } placeholder="optional"/>
+			</label>
+			<button type="button" class="danger" onclick="removeStep(this)">Remove step</button>
+		</div>
+	</details>
+}
+
+templ stepTypeOption(value, current string) {
+	if value == current {
+		<option value={ value } selected>{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}

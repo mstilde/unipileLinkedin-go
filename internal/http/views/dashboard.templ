@@ -1,0 +1,99 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ Dashboard(displayName string, accounts []gen.Account, campaigns []gen.Campaign, selectedAccountID string) {
+	@Layout("Dashboard") {
+		<section class="welcome">
+			<h2>Welcome, { displayName }</h2>
+		</section>
+		<section class="accounts">
+			<h3>Accounts</h3>
+			if len(accounts) == 0 {
+				<p class="empty">No accounts assigned yet.</p>
+			} else {
+				<ul class="account-list">
+					for _, a := range accounts {
+						<li>
+							<a href={ templ.URL("/accounts/" + a.ID + "/campaigns") }>
+								if a.Name != nil {
+									{ *a.Name }
+								} else {
+									{ a.ID }
+								}
+								<span class={ "status status-" + a.Status }>{ a.Status }</span>
+							</a>
+						</li>
+					}
+				</ul>
+			}
+		</section>
+		if selectedAccountID != "" {
+			<section class="campaigns">
+				<h3>Campaigns &mdash; { selectedAccountID }</h3>
+				@CampaignList(selectedAccountID, campaigns)
+			</section>
+		}
+	}
+}
+
+templ CampaignList(accountID string, campaigns []gen.Campaign) {
+	if len(campaigns) == 0 {
+		<p class="empty">No campaigns yet.</p>
+	} else {
+		<table class="campaign-table">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Status</th>
+					<th>Daily cap</th>
+					<th>TZ</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, c := range campaigns {
+					@CampaignRow(accountID, c)
+				}
+			</tbody>
+		</table>
+	}
+	<form
+		hx-post={ "/ui/accounts/" + accountID + "/campaigns" }
+		hx-target="closest table"
+		hx-swap="outerHTML"
+		class="new-campaign-form"
+	>
+		<input name="name" placeholder="New campaign name" required/>
+		<button type="submit">Create</button>
+	</form>
+}
+
+templ CampaignRow(accountID string, c gen.Campaign) {
+	<tr>
+		<td>
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns/" + uuidStr(c.ID) + "/sequence") }>
+				{ c.Name }
+			</a>
+		</td>
+		<td><span class={ "status status-" + c.Status }>{ c.Status }</span></td>
+		<td>{ itoa(int(c.DailyInviteLimit)) }</td>
+		<td>{ c.TZ }</td>
+		<td class="actions">
+			if c.Status == "draft" || c.Status == "paused" {
+				<button
+					hx-post={ "/ui/accounts/" + accountID + "/campaigns/" + uuidStr(c.ID) + "/start" }
+					hx-target="closest tr"
+					hx-swap="outerHTML"
+				>Start</button>
+			}
+			if c.Status == "active" {
+				<button
+					hx-post={ "/ui/accounts/" + accountID + "/campaigns/" + uuidStr(c.ID) + "/pause" }
+					hx-target="closest tr"
+					hx-swap="outerHTML"
+				>Pause</button>
+			}
+		</td>
+	</tr>
+}

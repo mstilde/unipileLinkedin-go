@@ -19,6 +19,7 @@ import (
 	"github.com/mstilde/unipile-linkedin-go/internal/db"
 	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
 	"github.com/mstilde/unipile-linkedin-go/internal/http/api"
+	"github.com/mstilde/unipile-linkedin-go/internal/http/ui"
 	"github.com/mstilde/unipile-linkedin-go/internal/scheduler"
 )
 
@@ -40,6 +41,7 @@ func main() {
 	// DB pool. Without DATABASE_URL the server still starts but DB-backed
 	// routes will 500 — useful for /health smoke tests in CI.
 	var apiHandler http.Handler
+	var uiHandler http.Handler
 	var schedMgr *scheduler.Manager
 	if cfg.DatabaseURL != "" {
 		dbPool, err := db.OpenPool(rootCtx, cfg.DatabaseURL)
@@ -68,6 +70,11 @@ func main() {
 			Signer: signer,
 			Store:  &api.SQLAccountStore{Q: q},
 		})
+		uiHandler = ui.Mount(ui.Deps{
+			Pool:   dbPool,
+			Q:      q,
+			Signer: signer,
+		})
 
 		schedMgr = scheduler.New(dbPool, q, scheduler.Config{
 			CampaignInterval: cfg.CampaignSchedulerInterval,
@@ -93,6 +100,13 @@ func main() {
 	if apiHandler != nil {
 		r.Mount("/api/v1", apiHandler)
 	}
+	if uiHandler != nil {
+		r.Mount("/", uiHandler)
+	}
+
+	// Static assets (CSS, JS).
+	staticDir := http.Dir("./static")
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(staticDir)))
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
