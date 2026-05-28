@@ -31,15 +31,19 @@ func Mount(d Deps) chi.Router {
 		r.Get("/dashboard", h.Dashboard)
 		r.Get("/accounts/{accountID}/campaigns", h.CampaignsPage)
 		r.Get("/accounts/{accountID}/campaigns/{campaignID}/sequence", h.SequencePage)
+		r.Get("/accounts/{accountID}/campaigns/{campaignID}/metrics", h.MetricsPage)
+		r.Get("/accounts/{accountID}/inbox", h.InboxPage)
+		r.Get("/accounts/{accountID}/onboarding", h.OnboardingPage)
+		r.Get("/admin", h.AdminPage)
 
 		// HTMX endpoints under /ui to keep them distinct from full-page routes.
 		r.Route("/ui/accounts/{accountID}/campaigns", func(r chi.Router) {
 			r.Post("/", h.CreateCampaign)
 			r.Post("/{campaignID}/start", h.StartCampaign)
 			r.Post("/{campaignID}/pause", h.PauseCampaign)
-			// PUT /sequence is handled by the JSON API; the form-encoded version
-			// here would be redundant. The JS converts to JSON before sending.
 		})
+		r.Put("/ui/accounts/{accountID}/onboarding", h.SaveOnboarding)
+		r.Post("/ui/admin/users", h.CreateUser)
 	})
 
 	return r

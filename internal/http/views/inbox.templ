@@ -1,0 +1,49 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ Inbox(accountID string, prospects []gen.Prospect) {
+	@Layout("Inbox") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>Inbox &middot; { accountID }</h2>
+		</section>
+		if len(prospects) == 0 {
+			<p class="empty">No conversations yet.</p>
+		} else {
+			<table class="campaign-table">
+				<thead>
+					<tr>
+						<th>Prospect</th>
+						<th>Stage</th>
+						<th>Status</th>
+						<th>Last reply</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, p := range prospects {
+						<tr>
+							<td>
+								if p.FullName != nil {
+									{ *p.FullName }
+								} else {
+									{ p.ProfileUrl }
+								}
+								if p.Headline != nil {
+									<div class="muted">{ *p.Headline }</div>
+								}
+							</td>
+							<td>{ p.ConversationStage }</td>
+							<td><span class={ "status status-" + p.Status }>{ p.Status }</span></td>
+							<td class="muted">
+								if p.LastReplyAt.Valid {
+									{ p.LastReplyAt.Time.Format("2006-01-02 15:04") }
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	}
+}

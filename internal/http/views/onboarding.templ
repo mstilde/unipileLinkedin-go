@@ -1,0 +1,43 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ Onboarding(accountID string, persona *gen.AiPersona, profile *gen.ClientProfile) {
+	@Layout("Onboarding") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>Onboarding &middot; { accountID }</h2>
+		</section>
+
+		<form
+			hx-put={ "/ui/accounts/" + accountID + "/onboarding" }
+			hx-swap="none"
+			hx-on::after-request="document.getElementById('onb-msg').textContent='Saved at ' + new Date().toLocaleTimeString()"
+		>
+			<div class="step-card" open>
+				<div class="step-body">
+					<label class="full">
+						AI persona system prompt
+						<textarea name="system_prompt" rows="8" placeholder="You are X helping...">
+							if persona != nil {
+								{ persona.SystemPrompt }
+							}
+						</textarea>
+					</label>
+					<label class="full">
+						Client profile questionnaire (JSON, optional)
+						<textarea name="questionnaire" rows="6" placeholder='{"industry":"...","value_prop":"..."}'>
+							if profile != nil && len(profile.Questionnaire) > 0 {
+								{ string(profile.Questionnaire) }
+							}
+						</textarea>
+					</label>
+				</div>
+			</div>
+			<div class="sequence-actions">
+				<button type="submit">Save onboarding</button>
+				<span id="onb-msg" class="save-msg"></span>
+			</div>
+		</form>
+	}
+}

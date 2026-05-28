@@ -1,0 +1,71 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ Admin(users []gen.ListUsersRow, accounts []gen.Account) {
+	@Layout("Admin") {
+		<h2>Admin</h2>
+
+		<h3>Users</h3>
+		<table class="campaign-table">
+			<thead>
+				<tr><th>Username</th><th>Display</th><th>Role</th><th>Active</th></tr>
+			</thead>
+			<tbody>
+				for _, u := range users {
+					<tr>
+						<td>{ u.Username }</td>
+						<td>{ strDeref(u.DisplayName) }</td>
+						<td>{ u.Role }</td>
+						<td>
+							if u.IsActive {
+								<span class="status status-active">yes</span>
+							} else {
+								<span class="status status-archived">no</span>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<form
+			class="new-campaign-form"
+			hx-post="/ui/admin/users"
+			hx-target="closest table"
+			hx-swap="outerHTML"
+		>
+			<input name="username" placeholder="username" required/>
+			<input name="password" type="password" placeholder="password (8+ chars)" required minlength="8"/>
+			<input name="display_name" placeholder="display name"/>
+			<select name="role">
+				<option value="worker">worker</option>
+				<option value="admin">admin</option>
+			</select>
+			<button type="submit">Create user</button>
+		</form>
+
+		<h3>Accounts</h3>
+		<table class="campaign-table">
+			<thead>
+				<tr><th>ID</th><th>Provider</th><th>Name</th><th>Owner</th><th>Status</th></tr>
+			</thead>
+			<tbody>
+				for _, a := range accounts {
+					<tr>
+						<td>{ a.ID }</td>
+						<td>{ a.Provider }</td>
+						<td>{ strDeref(a.Name) }</td>
+						<td>
+							if a.OwnerUserID != nil {
+								{ itoa(int(*a.OwnerUserID)) }
+							} else {
+								<span class="muted">unassigned</span>
+							}
+						</td>
+						<td><span class={ "status status-" + a.Status }>{ a.Status }</span></td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}

@@ -1,0 +1,44 @@
+package views
+
+import "github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+
+templ Metrics(accountID string, c gen.Campaign, funnel []gen.ProspectFunnelByCampaignRow, stages []gen.ProspectStageDistributionRow) {
+	@Layout("Metrics") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>{ c.Name } &middot; metrics</h2>
+			<span class={ "status status-" + c.Status }>{ c.Status }</span>
+		</section>
+
+		<h3>Funnel (by prospect status)</h3>
+		if len(funnel) == 0 {
+			<p class="empty">No prospects yet.</p>
+		} else {
+			<table class="campaign-table">
+				<thead><tr><th>Status</th><th>Count</th></tr></thead>
+				<tbody>
+					for _, row := range funnel {
+						<tr>
+							<td><span class={ "status status-" + row.Status }>{ row.Status }</span></td>
+							<td>{ itoa(int(row.Count)) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		<h3>Conversation stage distribution</h3>
+		if len(stages) == 0 {
+			<p class="empty">No active prospects.</p>
+		} else {
+			<table class="campaign-table">
+				<thead><tr><th>Stage</th><th>Count</th></tr></thead>
+				<tbody>
+					for _, row := range stages {
+						<tr><td>{ row.Stage }</td><td>{ itoa(int(row.Count)) }</td></tr>
+					}
+				</tbody>
+			</table>
+		}
+	}
+}

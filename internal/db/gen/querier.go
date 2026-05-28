@@ -24,9 +24,11 @@ type Querier interface {
 	DeleteStep(ctx context.Context, id pgtype.UUID) error
 	DeleteTemplate(ctx context.Context, arg DeleteTemplateParams) error
 	DuplicateCampaign(ctx context.Context, arg DuplicateCampaignParams) (Campaign, error)
+	GetAIPersonaByAccount(ctx context.Context, accountID string) (AiPersona, error)
 	GetAccountByID(ctx context.Context, id string) (Account, error)
 	GetCampaign(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	GetCampaignForAccount(ctx context.Context, arg GetCampaignForAccountParams) (Campaign, error)
+	GetClientProfileByAccount(ctx context.Context, accountID string) (ClientProfile, error)
 	GetProspect(ctx context.Context, id pgtype.UUID) (Prospect, error)
 	GetStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
@@ -40,6 +42,7 @@ type Querier interface {
 	ListDueFollowUpTasks(ctx context.Context, limit int32) ([]FollowUpTask, error)
 	ListPendingAIReplies(ctx context.Context, limit int32) ([]AiReplyQueue, error)
 	ListPendingProspectSteps(ctx context.Context, limit int32) ([]ListPendingProspectStepsRow, error)
+	ListProspectsByAccount(ctx context.Context, arg ListProspectsByAccountParams) ([]Prospect, error)
 	ListProspectsByCampaign(ctx context.Context, arg ListProspectsByCampaignParams) ([]Prospect, error)
 	ListStepsByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]SequenceStep, error)
 	ListTemplatesByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]CampaignTemplate, error)
@@ -59,7 +62,9 @@ type Querier interface {
 	UpdateCampaign(ctx context.Context, arg UpdateCampaignParams) (Campaign, error)
 	UpdateStep(ctx context.Context, arg UpdateStepParams) (SequenceStep, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpsertAIPersona(ctx context.Context, arg UpsertAIPersonaParams) (AiPersona, error)
 	UpsertAccount(ctx context.Context, arg UpsertAccountParams) (Account, error)
+	UpsertClientProfile(ctx context.Context, arg UpsertClientProfileParams) (ClientProfile, error)
 	UpsertTemplate(ctx context.Context, arg UpsertTemplateParams) (CampaignTemplate, error)
 }
 
