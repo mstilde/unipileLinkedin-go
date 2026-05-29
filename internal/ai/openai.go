@@ -171,6 +171,13 @@ func isRetryable(err error) bool {
 	return false
 }
 
+// IsTransientError reports whether err is a transient provider failure (429,
+// 5xx, or transport error) that warrants leaving work for a later retry rather
+// than treating it as a permanent failure. Wrapped errors are unwrapped.
+func IsTransientError(err error) bool {
+	return isRetryable(err)
+}
+
 // backoffDelay returns the sleep before attempt N (0-indexed): 1s, 4s, 12s.
 func backoffDelay(attempt int) time.Duration {
 	switch attempt {

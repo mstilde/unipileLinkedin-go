@@ -16,7 +16,9 @@ type Querier interface {
 	// account, filtered to invite step types.
 	CountInvitesSentToday(ctx context.Context, accountID string) (int64, error)
 	CountProspectsByCampaign(ctx context.Context, campaignID pgtype.UUID) (int64, error)
+	CountUnscoredJobPostings(ctx context.Context, accountID string) (int64, error)
 	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
+	CreateJobSearch(ctx context.Context, arg CreateJobSearchParams) (JobSearch, error)
 	CreateProspect(ctx context.Context, arg CreateProspectParams) (Prospect, error)
 	// Insert a pending prospect_step. scheduled_at should already include any delay.
 	CreateProspectStep(ctx context.Context, arg CreateProspectStepParams) (ProspectStep, error)
@@ -41,6 +43,9 @@ type Querier interface {
 	GetStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	// Insert a freshly-discovered posting. On conflict (already seen) returns no
+	// rows, so the caller treats pgx.ErrNoRows as "skip, already have it".
+	InsertJobPosting(ctx context.Context, arg InsertJobPostingParams) (JobPosting, error)
 	IsAccountOwned(ctx context.Context, arg IsAccountOwnedParams) (bool, error)
 	LeaseProspectStep(ctx context.Context, id pgtype.UUID) (ProspectStep, error)
 	ListAccounts(ctx context.Context) ([]Account, error)
@@ -48,29 +53,47 @@ type Querier interface {
 	ListActiveCampaigns(ctx context.Context) ([]Campaign, error)
 	ListCampaignsByAccount(ctx context.Context, accountID string) ([]Campaign, error)
 	ListDueFollowUpTasks(ctx context.Context, limit int32) ([]FollowUpTask, error)
+	// Enabled job searches never run, or last run longer ago than the given
+	// interval. The scheduler discovery phase iterates these.
+	ListDueJobSearches(ctx context.Context, arg ListDueJobSearchesParams) ([]JobSearch, error)
+	// Distinct accounts that have at least one enabled job search; the scoring
+	// phase iterates these to drain their unscored postings.
+	ListEnabledJobSearchAccounts(ctx context.Context) ([]string, error)
+	// Report ordering: best score first, then most recently seen.
+	ListJobPostingsByAccount(ctx context.Context, arg ListJobPostingsByAccountParams) ([]JobPosting, error)
+	ListJobSearchesByAccount(ctx context.Context, accountID string) ([]JobSearch, error)
 	ListPendingAIReplies(ctx context.Context, limit int32) ([]AiReplyQueue, error)
 	ListPendingProspectSteps(ctx context.Context, limit int32) ([]ListPendingProspectStepsRow, error)
 	ListProspectsByAccount(ctx context.Context, arg ListProspectsByAccountParams) ([]Prospect, error)
 	ListProspectsByCampaign(ctx context.Context, arg ListProspectsByCampaignParams) ([]Prospect, error)
 	ListStepsByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]SequenceStep, error)
 	ListTemplatesByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]CampaignTemplate, error)
+	ListUnscoredJobPostings(ctx context.Context, arg ListUnscoredJobPostingsParams) ([]JobPosting, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkAIReplyDone(ctx context.Context, arg MarkAIReplyDoneParams) error
 	MarkAIReplyFailed(ctx context.Context, arg MarkAIReplyFailedParams) error
 	MarkFollowUpTaskCancelled(ctx context.Context, arg MarkFollowUpTaskCancelledParams) error
 	MarkFollowUpTaskSent(ctx context.Context, arg MarkFollowUpTaskSentParams) error
+	// Could not score (detail fetch or LLM error). Park it as 'dismissed' with the
+	// reason so it leaves the unscored queue instead of looping forever.
+	MarkJobPostingScoreFailed(ctx context.Context, arg MarkJobPostingScoreFailedParams) error
 	MarkProspectStepFailed(ctx context.Context, arg MarkProspectStepFailedParams) error
 	MarkProspectStepSent(ctx context.Context, arg MarkProspectStepSentParams) error
 	ProspectFunnelByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]ProspectFunnelByCampaignRow, error)
 	ProspectStageDistribution(ctx context.Context, campaignID pgtype.UUID) ([]ProspectStageDistributionRow, error)
 	ReleaseStaleLeases(ctx context.Context, dollar_1 pgtype.Interval) error
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
+	// Records the AI score plus the detail we fetched while scoring (JD, applicants,
+	// posted_at). Flips status new -> scored.
+	SetJobPostingScore(ctx context.Context, arg SetJobPostingScoreParams) error
+	SetJobPostingStatus(ctx context.Context, arg SetJobPostingStatusParams) error
 	// After StartNewChat we learn the chat_id for the prospect.
 	SetProspectChatID(ctx context.Context, arg SetProspectChatIDParams) error
 	// Bookkeeping after a successful invite: set status, invited_at, chat_id, and
 	// the LinkedIn provider_id if we discovered it from the response.
 	SetProspectInvited(ctx context.Context, arg SetProspectInvitedParams) error
 	SetProspectStatus(ctx context.Context, arg SetProspectStatusParams) (Prospect, error)
+	TouchJobSearch(ctx context.Context, arg TouchJobSearchParams) error
 	UnassignAccountFromUser(ctx context.Context, arg UnassignAccountFromUserParams) error
 	UpdateCampaign(ctx context.Context, arg UpdateCampaignParams) (Campaign, error)
 	UpdateStep(ctx context.Context, arg UpdateStepParams) (SequenceStep, error)

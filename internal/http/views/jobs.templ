@@ -1,0 +1,113 @@
+package views
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+)
+
+// Jobs renders the ranked job-postings report for one account (front 2B).
+templ Jobs(accountID string, postings []gen.JobPosting, searches []gen.JobSearch) {
+	@Layout("Jobs") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>Job report &middot; { accountID }</h2>
+		</section>
+
+		<h3>Saved searches</h3>
+		if len(searches) == 0 {
+			<p class="empty">No saved searches yet.</p>
+		} else {
+			<table class="campaign-table">
+				<thead>
+					<tr><th>Name</th><th>Keywords</th><th>Last run</th><th>Last seen</th></tr>
+				</thead>
+				<tbody>
+					for _, s := range searches {
+						<tr>
+							<td>{ s.Name }</td>
+							<td class="muted">{ s.Keywords }</td>
+							<td class="muted">
+								if s.LastRunAt.Valid {
+									{ s.LastRunAt.Time.Format("2006-01-02 15:04") }
+								} else {
+									never
+								}
+							</td>
+							<td>{ itoa(int(s.LastSeenCount)) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		<h3>Ranked postings</h3>
+		@JobsTable(accountID, postings)
+	}
+}
+
+// JobsTable is the postings table, rendered standalone so HTMX status actions
+// can swap it in place.
+templ JobsTable(accountID string, postings []gen.JobPosting) {
+	<div id="jobs-table">
+		if len(postings) == 0 {
+			<p class="empty">No postings discovered yet. The scheduler will populate this on its next run.</p>
+		} else {
+			<table class="campaign-table">
+				<thead>
+					<tr>
+						<th>Score</th>
+						<th>Role</th>
+						<th>Why</th>
+						<th>Status</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, p := range postings {
+						<tr>
+							<td><span class={ "score-badge " + jobScoreClass(p.AiScore) }>{ jobScore(p.AiScore) }</span></td>
+							<td>
+								if p.URL != nil {
+									<a href={ templ.URL(*p.URL) } target="_blank" rel="noopener">{ p.Title }</a>
+								} else {
+									{ p.Title }
+								}
+								<div class="muted">
+									{ p.Company }
+									if p.Location != nil {
+										&middot; { *p.Location }
+									}
+								</div>
+								if len(jobTags(p.AiTags)) > 0 {
+									<div class="tags">
+										for _, t := range jobTags(p.AiTags) {
+											<span class="tag">{ t }</span>
+										}
+									</div>
+								}
+							</td>
+							<td class="muted">{ strDeref(p.AiReasoning) }</td>
+							<td><span class={ "status status-" + p.Status }>{ p.Status }</span></td>
+							<td>
+								@jobStatusButton(accountID, p.ID, "applied", "Applied")
+								@jobStatusButton(accountID, p.ID, "saved", "Save")
+								@jobStatusButton(accountID, p.ID, "dismissed", "Dismiss")
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+templ jobStatusButton(accountID string, id pgtype.UUID, status, label string) {
+	<button
+		type="button"
+		class="btn-small"
+		hx-post={ "/ui/accounts/" + accountID + "/jobs/" + uuidStr(id) + "/status" }
+		hx-vals={ `{"status":"` + status + `"}` }
+		hx-target="#jobs-table"
+		hx-swap="outerHTML"
+	>{ label }</button>
+}

@@ -423,6 +423,41 @@ type HybridSearchAudit struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type JobPosting struct {
+	ID              pgtype.UUID        `json:"id"`
+	AccountID       string             `json:"account_id"`
+	SearchID        pgtype.UUID        `json:"search_id"`
+	LinkedinJobID   string             `json:"linkedin_job_id"`
+	Title           string             `json:"title"`
+	Company         string             `json:"company"`
+	Location        *string            `json:"location"`
+	URL             *string            `json:"url"`
+	ApplicantsCount *int32             `json:"applicants_count"`
+	RawJd           *string            `json:"raw_jd"`
+	PostedAt        pgtype.Timestamptz `json:"posted_at"`
+	AiScore         *int32             `json:"ai_score"`
+	AiReasoning     *string            `json:"ai_reasoning"`
+	AiTags          []byte             `json:"ai_tags"`
+	AiModel         *string            `json:"ai_model"`
+	Status          string             `json:"status"`
+	FirstSeenAt     pgtype.Timestamptz `json:"first_seen_at"`
+	ScoredAt        pgtype.Timestamptz `json:"scored_at"`
+}
+
+type JobSearch struct {
+	ID            pgtype.UUID        `json:"id"`
+	AccountID     string             `json:"account_id"`
+	Name          string             `json:"name"`
+	Keywords      string             `json:"keywords"`
+	GeoID         string             `json:"geo_id"`
+	SearchUrl     *string            `json:"search_url"`
+	Enabled       bool               `json:"enabled"`
+	MaxResults    int32              `json:"max_results"`
+	LastRunAt     pgtype.Timestamptz `json:"last_run_at"`
+	LastSeenCount int32              `json:"last_seen_count"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type LinkedinAccountQuotum struct {
 	AccountID       string      `json:"account_id"`
 	Date            pgtype.Date `json:"date"`

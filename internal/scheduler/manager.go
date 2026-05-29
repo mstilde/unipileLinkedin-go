@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mstilde/unipile-linkedin-go/internal/ai"
 	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
 	"github.com/mstilde/unipile-linkedin-go/internal/unipile"
 )
@@ -23,6 +24,8 @@ type Config struct {
 	CampaignInterval time.Duration
 	FollowUpInterval time.Duration
 	AIQueueInterval  time.Duration
+	JobsInterval     time.Duration // how often the jobs loop checks for due searches + unscored postings (default 1h)
+	JobsRediscover   time.Duration // re-run a saved search only if last_run older than this (default 12h)
 	BatchSize        int32         // rows per tick (default 50)
 	StaleLeaseAge    time.Duration // re-arm processing rows older than this
 	DryRun           bool          // when true, side-effecting actions are logged but not invoked
@@ -38,6 +41,12 @@ func (c Config) withDefaults() Config {
 	}
 	if c.AIQueueInterval <= 0 {
 		c.AIQueueInterval = 30 * time.Second
+	}
+	if c.JobsInterval <= 0 {
+		c.JobsInterval = time.Hour
+	}
+	if c.JobsRediscover <= 0 {
+		c.JobsRediscover = 12 * time.Hour
 	}
 	if c.BatchSize <= 0 {
 		c.BatchSize = 50
@@ -55,12 +64,15 @@ type Manager struct {
 	pool    *pgxpool.Pool
 	q       *gen.Queries
 	unipile *unipile.Provider
+	ranker  *ai.JobRanker // optional; when nil the jobs loop discovers but doesn't score
 	log     *slog.Logger
 
 	wg sync.WaitGroup
 }
 
-func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, cfg Config, log *slog.Logger) *Manager {
+// New builds the scheduler manager. ranker may be nil (no AI configured): the
+// jobs loop still discovers and stores postings, it just leaves them unscored.
+func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, ranker *ai.JobRanker, cfg Config, log *slog.Logger) *Manager {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -72,6 +84,7 @@ func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, cfg Config, l
 		pool:    pool,
 		q:       q,
 		unipile: up,
+		ranker:  ranker,
 		log:     log,
 	}
 }
@@ -79,10 +92,11 @@ func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, cfg Config, l
 // Start launches the three loops. It returns immediately; the caller should
 // pass a cancellable context and wait on Wait() to know when shutdown completes.
 func (m *Manager) Start(ctx context.Context) {
-	m.wg.Add(3)
+	m.wg.Add(4)
 	go m.runLoop(ctx, "campaign", m.cfg.CampaignInterval, m.tickCampaign)
 	go m.runLoop(ctx, "followup", m.cfg.FollowUpInterval, m.tickFollowUp)
 	go m.runLoop(ctx, "aiqueue", m.cfg.AIQueueInterval, m.tickAIQueue)
+	go m.runLoop(ctx, "jobs", m.cfg.JobsInterval, m.tickJobs)
 }
 
 // Wait blocks until all loops have drained after their context was cancelled.

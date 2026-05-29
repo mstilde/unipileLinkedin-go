@@ -33,6 +33,7 @@ func Mount(d Deps) chi.Router {
 		r.Get("/accounts/{accountID}/campaigns/{campaignID}/sequence", h.SequencePage)
 		r.Get("/accounts/{accountID}/campaigns/{campaignID}/metrics", h.MetricsPage)
 		r.Get("/accounts/{accountID}/inbox", h.InboxPage)
+		r.Get("/accounts/{accountID}/jobs", h.JobsPage)
 		r.Get("/accounts/{accountID}/onboarding", h.OnboardingPage)
 		r.Get("/admin", h.AdminPage)
 
@@ -42,6 +43,7 @@ func Mount(d Deps) chi.Router {
 			r.Post("/{campaignID}/start", h.StartCampaign)
 			r.Post("/{campaignID}/pause", h.PauseCampaign)
 		})
+		r.Post("/ui/accounts/{accountID}/jobs/{postingID}/status", h.SetJobStatus)
 		r.Put("/ui/accounts/{accountID}/onboarding", h.SaveOnboarding)
 		r.Post("/ui/admin/users", h.CreateUser)
 	})

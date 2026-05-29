@@ -93,7 +93,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		reqBody = bytes.NewReader(buf)
 	}
 
-	u, err := url.JoinPath(c.baseURL(), path)
+	u, err := buildURL(c.baseURL(), path)
 	if err != nil {
 		return fmt.Errorf("unipile: build url: %w", err)
 	}
@@ -126,6 +126,21 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	return nil
 }
 
+// buildURL joins base + path while preserving any query string on path.
+// url.JoinPath escapes the whole element (turning "?" into "%3F"), so we split
+// the query off, join only the path part, and re-append the raw query.
+func buildURL(base, path string) (string, error) {
+	pathPart, query, hasQuery := strings.Cut(path, "?")
+	u, err := url.JoinPath(base, pathPart)
+	if err != nil {
+		return "", err
+	}
+	if hasQuery {
+		u += "?" + query
+	}
+	return u, nil
+}
+
 // doMultipart sends a multipart/form-data POST. fields is the set of
 // form-text fields. out gets the decoded success body.
 //
@@ -151,7 +166,7 @@ func (c *Client) doMultipart(ctx context.Context, path string, fields map[string
 		return fmt.Errorf("unipile: multipart close: %w", err)
 	}
 
-	u, err := url.JoinPath(c.baseURL(), path)
+	u, err := buildURL(c.baseURL(), path)
 	if err != nil {
 		return fmt.Errorf("unipile: build url: %w", err)
 	}

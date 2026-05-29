@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 
+	"github.com/mstilde/unipile-linkedin-go/internal/ai"
 	"github.com/mstilde/unipile-linkedin-go/internal/auth"
 	"github.com/mstilde/unipile-linkedin-go/internal/config"
 	"github.com/mstilde/unipile-linkedin-go/internal/db"
@@ -77,7 +78,12 @@ func main() {
 			Signer: signer,
 		})
 
-		schedMgr = scheduler.New(dbPool, q, unipile.NewEnvProvider(), scheduler.Config{
+		// Job-postings ranker (front 2B). Built over the Anthropic client, which
+		// in this deploy points at OpenCode Go via AI_BASE_URL_ANTHROPIC. Nil when
+		// no key is configured — the jobs loop then discovers but doesn't score.
+		ranker := buildJobRanker(cfg)
+
+		schedMgr = scheduler.New(dbPool, q, unipile.NewEnvProvider(), ranker, scheduler.Config{
 			CampaignInterval: cfg.CampaignSchedulerInterval,
 			FollowUpInterval: cfg.FollowUpInterval,
 			AIQueueInterval:  cfg.AIQueueInterval,
@@ -136,6 +142,25 @@ func main() {
 		schedMgr.Wait()
 	}
 	slog.Info("server stopped")
+}
+
+// buildJobRanker constructs the AI job ranker from config. Returns nil when no
+// Anthropic key is set (the jobs loop then discovers postings without scoring).
+// AIBaseURLAnthropic routes traffic through OpenCode Go when set.
+func buildJobRanker(cfg *config.Config) *ai.JobRanker {
+	if cfg.AnthropicAPIKey == "" {
+		slog.Warn("no ANTHROPIC_API_KEY; job ranker disabled (postings will not be scored)")
+		return nil
+	}
+	client, err := ai.NewAnthropicClient(cfg.AnthropicAPIKey)
+	if err != nil {
+		slog.Warn("job ranker init failed; postings will not be scored", "err", err)
+		return nil
+	}
+	if cfg.AIBaseURLAnthropic != "" {
+		client = client.WithBaseURL(cfg.AIBaseURLAnthropic)
+	}
+	return ai.NewJobRanker(client, cfg.AnthropicModelSmart)
 }
 
 func setupLogger(level string) *slog.Logger {

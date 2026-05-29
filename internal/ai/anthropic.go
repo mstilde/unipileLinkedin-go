@@ -71,6 +71,25 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// MarshalJSON serializes content as a one-element block array
+// ([{type:"text",text:...}]) rather than a bare string. Real Anthropic accepts
+// both forms, but OpenCode's Anthropic→OpenAI proxy silently drops bare-string
+// content (the model then sees only the system prompt). Block form keeps both
+// backends working.
+func (m Message) MarshalJSON() ([]byte, error) {
+	type block struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	return json.Marshal(struct {
+		Role    string  `json:"role"`
+		Content []block `json:"content"`
+	}{
+		Role:    m.Role,
+		Content: []block{{Type: "text", Text: m.Content}},
+	})
+}
+
 // MessagesRequest is the request body for /v1/messages.
 type MessagesRequest struct {
 	Model     string        `json:"model"`

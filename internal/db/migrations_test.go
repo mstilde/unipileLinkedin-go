@@ -21,6 +21,7 @@ func TestMigrationsEmbedded(t *testing.T) {
 		"00008_followup.sql",
 		"00009_sync_misc.sql",
 		"00010_views_triggers.sql",
+		"00011_job_postings.sql",
 	}
 
 	mFS := Migrations()
