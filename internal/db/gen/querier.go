@@ -18,6 +18,7 @@ type Querier interface {
 	CountProspectsByCampaign(ctx context.Context, campaignID pgtype.UUID) (int64, error)
 	CountUnscoredJobPostings(ctx context.Context, accountID string) (int64, error)
 	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
+	CreateFeedSearch(ctx context.Context, arg CreateFeedSearchParams) (FeedSearch, error)
 	CreateJobSearch(ctx context.Context, arg CreateJobSearchParams) (JobSearch, error)
 	CreateProspect(ctx context.Context, arg CreateProspectParams) (Prospect, error)
 	// Insert a pending prospect_step. scheduled_at should already include any delay.
@@ -36,6 +37,7 @@ type Querier interface {
 	GetCampaign(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	GetCampaignForAccount(ctx context.Context, arg GetCampaignForAccountParams) (Campaign, error)
 	GetClientProfileByAccount(ctx context.Context, accountID string) (ClientProfile, error)
+	GetFeedPost(ctx context.Context, arg GetFeedPostParams) (FeedPost, error)
 	// Given the just-dispatched step (by sequence_step id), find the next one in the
 	// same campaign (step_index + 1). Returns no rows when there is no next step.
 	GetNextSequenceStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
@@ -43,6 +45,8 @@ type Querier interface {
 	GetStep(ctx context.Context, id pgtype.UUID) (SequenceStep, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	// On conflict (already seen) returns no rows; caller treats pgx.ErrNoRows as skip.
+	InsertFeedPost(ctx context.Context, arg InsertFeedPostParams) (FeedPost, error)
 	// Insert a freshly-discovered posting. On conflict (already seen) returns no
 	// rows, so the caller treats pgx.ErrNoRows as "skip, already have it".
 	InsertJobPosting(ctx context.Context, arg InsertJobPostingParams) (JobPosting, error)
@@ -52,13 +56,17 @@ type Querier interface {
 	ListAccountsByOwner(ctx context.Context, ownerUserID *int64) ([]Account, error)
 	ListActiveCampaigns(ctx context.Context) ([]Campaign, error)
 	ListCampaignsByAccount(ctx context.Context, accountID string) ([]Campaign, error)
+	ListDueFeedSearches(ctx context.Context, arg ListDueFeedSearchesParams) ([]FeedSearch, error)
 	ListDueFollowUpTasks(ctx context.Context, limit int32) ([]FollowUpTask, error)
 	// Enabled job searches never run, or last run longer ago than the given
 	// interval. The scheduler discovery phase iterates these.
 	ListDueJobSearches(ctx context.Context, arg ListDueJobSearchesParams) ([]JobSearch, error)
+	ListEnabledFeedSearchAccounts(ctx context.Context) ([]string, error)
 	// Distinct accounts that have at least one enabled job search; the scoring
 	// phase iterates these to drain their unscored postings.
 	ListEnabledJobSearchAccounts(ctx context.Context) ([]string, error)
+	ListFeedPostsByAccount(ctx context.Context, arg ListFeedPostsByAccountParams) ([]FeedPost, error)
+	ListFeedSearchesByAccount(ctx context.Context, accountID string) ([]FeedSearch, error)
 	// Report ordering: best score first, then most recently seen.
 	ListJobPostingsByAccount(ctx context.Context, arg ListJobPostingsByAccountParams) ([]JobPosting, error)
 	ListJobSearchesByAccount(ctx context.Context, accountID string) ([]JobSearch, error)
@@ -68,10 +76,12 @@ type Querier interface {
 	ListProspectsByCampaign(ctx context.Context, arg ListProspectsByCampaignParams) ([]Prospect, error)
 	ListStepsByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]SequenceStep, error)
 	ListTemplatesByCampaign(ctx context.Context, campaignID pgtype.UUID) ([]CampaignTemplate, error)
+	ListUnscoredFeedPosts(ctx context.Context, arg ListUnscoredFeedPostsParams) ([]FeedPost, error)
 	ListUnscoredJobPostings(ctx context.Context, arg ListUnscoredJobPostingsParams) ([]JobPosting, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	MarkAIReplyDone(ctx context.Context, arg MarkAIReplyDoneParams) error
 	MarkAIReplyFailed(ctx context.Context, arg MarkAIReplyFailedParams) error
+	MarkFeedPostClassifyFailed(ctx context.Context, arg MarkFeedPostClassifyFailedParams) error
 	MarkFollowUpTaskCancelled(ctx context.Context, arg MarkFollowUpTaskCancelledParams) error
 	MarkFollowUpTaskSent(ctx context.Context, arg MarkFollowUpTaskSentParams) error
 	// Could not score (detail fetch or LLM error). Park it as 'dismissed' with the
@@ -83,6 +93,10 @@ type Querier interface {
 	ProspectStageDistribution(ctx context.Context, campaignID pgtype.UUID) ([]ProspectStageDistributionRow, error)
 	ReleaseStaleLeases(ctx context.Context, dollar_1 pgtype.Interval) error
 	SetCampaignStatus(ctx context.Context, arg SetCampaignStatusParams) (Campaign, error)
+	// Records the AI classification. status should be 'relevant' or 'irrelevant'.
+	SetFeedPostClassification(ctx context.Context, arg SetFeedPostClassificationParams) error
+	SetFeedPostImported(ctx context.Context, arg SetFeedPostImportedParams) error
+	SetFeedPostStatus(ctx context.Context, arg SetFeedPostStatusParams) error
 	// Records the AI score plus the detail we fetched while scoring (JD, applicants,
 	// posted_at). Flips status new -> scored.
 	SetJobPostingScore(ctx context.Context, arg SetJobPostingScoreParams) error
@@ -93,6 +107,7 @@ type Querier interface {
 	// the LinkedIn provider_id if we discovered it from the response.
 	SetProspectInvited(ctx context.Context, arg SetProspectInvitedParams) error
 	SetProspectStatus(ctx context.Context, arg SetProspectStatusParams) (Prospect, error)
+	TouchFeedSearch(ctx context.Context, arg TouchFeedSearchParams) error
 	TouchJobSearch(ctx context.Context, arg TouchJobSearchParams) error
 	UnassignAccountFromUser(ctx context.Context, arg UnassignAccountFromUserParams) error
 	UpdateCampaign(ctx context.Context, arg UpdateCampaignParams) (Campaign, error)

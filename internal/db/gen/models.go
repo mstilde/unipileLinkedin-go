@@ -349,6 +349,46 @@ type EnrichmentExternalCache struct {
 	HitCount  int32              `json:"hit_count"`
 }
 
+type FeedPost struct {
+	ID                 pgtype.UUID        `json:"id"`
+	AccountID          string             `json:"account_id"`
+	SearchID           pgtype.UUID        `json:"search_id"`
+	LinkedinPostID     string             `json:"linkedin_post_id"`
+	PostUrl            *string            `json:"post_url"`
+	Text               string             `json:"text"`
+	AuthorName         *string            `json:"author_name"`
+	AuthorHeadline     *string            `json:"author_headline"`
+	AuthorProviderID   *string            `json:"author_provider_id"`
+	AuthorProfileUrl   *string            `json:"author_profile_url"`
+	ReactionsCount     *int32             `json:"reactions_count"`
+	CommentsCount      *int32             `json:"comments_count"`
+	PostedAt           pgtype.Timestamptz `json:"posted_at"`
+	AiRelevant         *bool              `json:"ai_relevant"`
+	AiScore            *int32             `json:"ai_score"`
+	AiReasoning        *string            `json:"ai_reasoning"`
+	AiRole             *string            `json:"ai_role"`
+	AiCompany          *string            `json:"ai_company"`
+	AiTags             []byte             `json:"ai_tags"`
+	AiModel            *string            `json:"ai_model"`
+	Status             string             `json:"status"`
+	ImportedProspectID pgtype.UUID        `json:"imported_prospect_id"`
+	FirstSeenAt        pgtype.Timestamptz `json:"first_seen_at"`
+	ScoredAt           pgtype.Timestamptz `json:"scored_at"`
+}
+
+type FeedSearch struct {
+	ID            pgtype.UUID        `json:"id"`
+	AccountID     string             `json:"account_id"`
+	Name          string             `json:"name"`
+	Keywords      string             `json:"keywords"`
+	SearchUrl     *string            `json:"search_url"`
+	Enabled       bool               `json:"enabled"`
+	MaxResults    int32              `json:"max_results"`
+	LastRunAt     pgtype.Timestamptz `json:"last_run_at"`
+	LastSeenCount int32              `json:"last_seen_count"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type FollowUpConfig struct {
 	ID              int64              `json:"id"`
 	TriggerStatus   string             `json:"trigger_status"`

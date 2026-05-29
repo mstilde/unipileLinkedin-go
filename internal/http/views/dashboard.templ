@@ -26,6 +26,7 @@ templ Dashboard(displayName string, accounts []gen.Account, campaigns []gen.Camp
 							<span class="account-links">
 								<a href={ templ.URL("/accounts/" + a.ID + "/inbox") }>Inbox</a>
 								<a href={ templ.URL("/accounts/" + a.ID + "/jobs") }>Jobs</a>
+								<a href={ templ.URL("/accounts/" + a.ID + "/feed") }>Feed</a>
 								<a href={ templ.URL("/accounts/" + a.ID + "/onboarding") }>Onboarding</a>
 							</span>
 						</li>

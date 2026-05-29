@@ -1,0 +1,130 @@
+package views
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/mstilde/unipile-linkedin-go/internal/db/gen"
+)
+
+// Feed renders the post-feed scanner report for one account (front 4).
+templ Feed(accountID string, posts []gen.FeedPost, searches []gen.FeedSearch) {
+	@Layout("Feed") {
+		<section class="sequence-header">
+			<a href={ templ.URL("/accounts/" + accountID + "/campaigns") }>&larr; Back</a>
+			<h2>Post-feed scanner &middot; { accountID }</h2>
+		</section>
+
+		<h3>Saved feed searches</h3>
+		if len(searches) == 0 {
+			<p class="empty">No saved feed searches yet.</p>
+		} else {
+			<table class="campaign-table">
+				<thead>
+					<tr><th>Name</th><th>Keywords</th><th>Last run</th><th>Last seen</th></tr>
+				</thead>
+				<tbody>
+					for _, s := range searches {
+						<tr>
+							<td>{ s.Name }</td>
+							<td class="muted">{ s.Keywords }</td>
+							<td class="muted">
+								if s.LastRunAt.Valid {
+									{ s.LastRunAt.Time.Format("2006-01-02 15:04") }
+								} else {
+									never
+								}
+							</td>
+							<td>{ itoa(int(s.LastSeenCount)) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		<h3>Classified posts</h3>
+		@FeedTable(accountID, posts)
+	}
+}
+
+// FeedTable is the posts table, rendered standalone so HTMX actions can swap it.
+templ FeedTable(accountID string, posts []gen.FeedPost) {
+	<div id="feed-table">
+		if len(posts) == 0 {
+			<p class="empty">No posts discovered yet. The scheduler will populate this on its next run.</p>
+		} else {
+			<table class="campaign-table">
+				<thead>
+					<tr>
+						<th>Score</th>
+						<th>Relevant</th>
+						<th>Post</th>
+						<th>Why</th>
+						<th>Status</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, p := range posts {
+						<tr>
+							<td><span class={ "score-badge " + jobScoreClass(p.AiScore) }>{ jobScore(p.AiScore) }</span></td>
+							<td><span class={ "score-badge " + feedRelevantClass(p.AiRelevant) }>{ feedRelevant(p.AiRelevant) }</span></td>
+							<td>
+								<div>
+									if p.AuthorProfileUrl != nil {
+										<a href={ templ.URL(*p.AuthorProfileUrl) } target="_blank" rel="noopener">{ strDeref(p.AuthorName) }</a>
+									} else {
+										{ strDeref(p.AuthorName) }
+									}
+									if p.AuthorHeadline != nil {
+										<span class="muted"> &middot; { *p.AuthorHeadline }</span>
+									}
+								</div>
+								if p.AiRole != nil || p.AiCompany != nil {
+									<div class="muted">{ strDeref(p.AiRole) } &middot; { strDeref(p.AiCompany) }</div>
+								}
+								<div class="muted post-text">
+									if p.PostUrl != nil {
+										<a href={ templ.URL(*p.PostUrl) } target="_blank" rel="noopener">{ truncate(p.Text, 160) }</a>
+									} else {
+										{ truncate(p.Text, 160) }
+									}
+								</div>
+								if len(jobTags(p.AiTags)) > 0 {
+									<div class="tags">
+										for _, t := range jobTags(p.AiTags) {
+											<span class="tag">{ t }</span>
+										}
+									</div>
+								}
+							</td>
+							<td class="muted">{ strDeref(p.AiReasoning) }</td>
+							<td><span class={ "status status-" + p.Status }>{ p.Status }</span></td>
+							<td>
+								if p.Status != "imported" && p.AuthorProfileUrl != nil {
+									<button
+										type="button"
+										class="btn-small"
+										hx-post={ "/ui/accounts/" + accountID + "/feed/" + uuidStr(p.ID) + "/import" }
+										hx-target="#feed-table"
+										hx-swap="outerHTML"
+									>Import author</button>
+								}
+								@feedStatusButton(accountID, p.ID, "dismissed", "Dismiss")
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+templ feedStatusButton(accountID string, id pgtype.UUID, status, label string) {
+	<button
+		type="button"
+		class="btn-small"
+		hx-post={ "/ui/accounts/" + accountID + "/feed/" + uuidStr(id) + "/status" }
+		hx-vals={ `{"status":"` + status + `"}` }
+		hx-target="#feed-table"
+		hx-swap="outerHTML"
+	>{ label }</button>
+}

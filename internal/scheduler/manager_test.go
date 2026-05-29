@@ -31,6 +31,8 @@ func TestConfigWithDefaultsPreservesNonZero(t *testing.T) {
 		AIQueueInterval:  3 * time.Second,
 		JobsInterval:     30 * time.Minute,
 		JobsRediscover:   6 * time.Hour,
+		FeedInterval:     45 * time.Minute,
+		FeedRediscover:   8 * time.Hour,
 		BatchSize:        7,
 		StaleLeaseAge:    9 * time.Minute,
 		DryRun:           true,

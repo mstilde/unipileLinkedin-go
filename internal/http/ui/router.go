@@ -34,6 +34,7 @@ func Mount(d Deps) chi.Router {
 		r.Get("/accounts/{accountID}/campaigns/{campaignID}/metrics", h.MetricsPage)
 		r.Get("/accounts/{accountID}/inbox", h.InboxPage)
 		r.Get("/accounts/{accountID}/jobs", h.JobsPage)
+		r.Get("/accounts/{accountID}/feed", h.FeedPage)
 		r.Get("/accounts/{accountID}/onboarding", h.OnboardingPage)
 		r.Get("/admin", h.AdminPage)
 

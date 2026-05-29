@@ -82,8 +82,9 @@ func main() {
 		// in this deploy points at OpenCode Go via AI_BASE_URL_ANTHROPIC. Nil when
 		// no key is configured — the jobs loop then discovers but doesn't score.
 		ranker := buildJobRanker(cfg)
+		classifier := buildPostClassifier(cfg)
 
-		schedMgr = scheduler.New(dbPool, q, unipile.NewEnvProvider(), ranker, scheduler.Config{
+		schedMgr = scheduler.New(dbPool, q, unipile.NewEnvProvider(), ranker, classifier, scheduler.Config{
 			CampaignInterval: cfg.CampaignSchedulerInterval,
 			FollowUpInterval: cfg.FollowUpInterval,
 			AIQueueInterval:  cfg.AIQueueInterval,
@@ -161,6 +162,25 @@ func buildJobRanker(cfg *config.Config) *ai.JobRanker {
 		client = client.WithBaseURL(cfg.AIBaseURLAnthropic)
 	}
 	return ai.NewJobRanker(client, cfg.AnthropicModelSmart)
+}
+
+// buildPostClassifier constructs the AI feed-post classifier from config.
+// Returns nil when no Anthropic key is set (the feed loop then discovers posts
+// without classifying). Routes through OpenCode Go when AIBaseURLAnthropic set.
+func buildPostClassifier(cfg *config.Config) *ai.PostClassifier {
+	if cfg.AnthropicAPIKey == "" {
+		slog.Warn("no ANTHROPIC_API_KEY; post classifier disabled (feed posts will not be classified)")
+		return nil
+	}
+	client, err := ai.NewAnthropicClient(cfg.AnthropicAPIKey)
+	if err != nil {
+		slog.Warn("post classifier init failed; feed posts will not be classified", "err", err)
+		return nil
+	}
+	if cfg.AIBaseURLAnthropic != "" {
+		client = client.WithBaseURL(cfg.AIBaseURLAnthropic)
+	}
+	return ai.NewPostClassifier(client, cfg.AnthropicModelSmart)
 }
 
 func setupLogger(level string) *slog.Logger {

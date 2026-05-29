@@ -26,6 +26,8 @@ type Config struct {
 	AIQueueInterval  time.Duration
 	JobsInterval     time.Duration // how often the jobs loop checks for due searches + unscored postings (default 1h)
 	JobsRediscover   time.Duration // re-run a saved search only if last_run older than this (default 12h)
+	FeedInterval     time.Duration // how often the feed loop checks for due searches + unclassified posts (default 1h)
+	FeedRediscover   time.Duration // re-run a saved feed search only if last_run older than this (default 12h)
 	BatchSize        int32         // rows per tick (default 50)
 	StaleLeaseAge    time.Duration // re-arm processing rows older than this
 	DryRun           bool          // when true, side-effecting actions are logged but not invoked
@@ -48,6 +50,12 @@ func (c Config) withDefaults() Config {
 	if c.JobsRediscover <= 0 {
 		c.JobsRediscover = 12 * time.Hour
 	}
+	if c.FeedInterval <= 0 {
+		c.FeedInterval = time.Hour
+	}
+	if c.FeedRediscover <= 0 {
+		c.FeedRediscover = 12 * time.Hour
+	}
 	if c.BatchSize <= 0 {
 		c.BatchSize = 50
 	}
@@ -63,16 +71,18 @@ type Manager struct {
 	cfg     Config
 	pool    *pgxpool.Pool
 	q       *gen.Queries
-	unipile *unipile.Provider
-	ranker  *ai.JobRanker // optional; when nil the jobs loop discovers but doesn't score
-	log     *slog.Logger
+	unipile    *unipile.Provider
+	ranker     *ai.JobRanker       // optional; when nil the jobs loop discovers but doesn't score
+	classifier *ai.PostClassifier  // optional; when nil the feed loop discovers but doesn't classify
+	log        *slog.Logger
 
 	wg sync.WaitGroup
 }
 
-// New builds the scheduler manager. ranker may be nil (no AI configured): the
-// jobs loop still discovers and stores postings, it just leaves them unscored.
-func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, ranker *ai.JobRanker, cfg Config, log *slog.Logger) *Manager {
+// New builds the scheduler manager. ranker and classifier may be nil (no AI
+// configured): the jobs/feed loops still discover and store rows, they just
+// leave them unscored/unclassified.
+func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, ranker *ai.JobRanker, classifier *ai.PostClassifier, cfg Config, log *slog.Logger) *Manager {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -80,23 +90,25 @@ func New(pool *pgxpool.Pool, q *gen.Queries, up *unipile.Provider, ranker *ai.Jo
 		up = unipile.NewEnvProvider()
 	}
 	return &Manager{
-		cfg:     cfg.withDefaults(),
-		pool:    pool,
-		q:       q,
-		unipile: up,
-		ranker:  ranker,
-		log:     log,
+		cfg:        cfg.withDefaults(),
+		pool:       pool,
+		q:          q,
+		unipile:    up,
+		ranker:     ranker,
+		classifier: classifier,
+		log:        log,
 	}
 }
 
 // Start launches the three loops. It returns immediately; the caller should
 // pass a cancellable context and wait on Wait() to know when shutdown completes.
 func (m *Manager) Start(ctx context.Context) {
-	m.wg.Add(4)
+	m.wg.Add(5)
 	go m.runLoop(ctx, "campaign", m.cfg.CampaignInterval, m.tickCampaign)
 	go m.runLoop(ctx, "followup", m.cfg.FollowUpInterval, m.tickFollowUp)
 	go m.runLoop(ctx, "aiqueue", m.cfg.AIQueueInterval, m.tickAIQueue)
 	go m.runLoop(ctx, "jobs", m.cfg.JobsInterval, m.tickJobs)
+	go m.runLoop(ctx, "feed", m.cfg.FeedInterval, m.tickFeed)
 }
 
 // Wait blocks until all loops have drained after their context was cancelled.
