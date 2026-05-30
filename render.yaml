@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: unipile-linkedin-go
+    env: go
+    region: us-east
+    plan: free
+    buildCommand: go build ./cmd/server
+    startCommand: ./server
+    healthCheckPath: /health
+    envVars:
+      - key: ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DRY_RUN
+        value: false
+      - key: RESOLVE_SCHEDULER_INTERVAL
+        value: 1m
+      - key: CAMPAIGN_SCHEDULER_INTERVAL
+        value: 15m
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: UNIPILE_DSN
+        sync: false
+      - key: UNIPILE_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
